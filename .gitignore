@@ -8,4 +8,6 @@ dist/
 !.env.example
 *.log
 .anvil.pid
+tsconfig.tsbuildinfo
 .DS_Store
+Thumbs.db
