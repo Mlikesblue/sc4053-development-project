@@ -93,17 +93,17 @@ With the frontend running, use the network dropdown in the top bar to toggle bet
 
 ## Live Sepolia deployment
 
-The factory is already deployed on Sepolia. To browse the existing deployment without deploying your own, add the following to `web/.env.local` and start the frontend:
+This repository ships with a reference Sepolia deployment. You can browse it with any Sepolia RPC endpoint of your own; no private key is required for read-only access.
 
 ```sh
 VITE_FACTORY_SEPOLIA_ADDRESS=0xB200E4c71ba447281869880f895f24F825407173
-VITE_SEPOLIA_RPC_URL=<your Sepolia HTTPS RPC>
+VITE_SEPOLIA_RPC_URL=<your Sepolia HTTPS RPC — Alchemy, Infura, or any other>
 VITE_SEPOLIA_DEPLOYMENT_BLOCK=12089885
 ```
 
 Etherscan: <https://sepolia.etherscan.io/address/0xB200E4c71ba447281869880f895f24F825407173>
 
-The admin of the on-chain factory is the deploying wallet. Only that wallet can call `createAuction`; any connected wallet can bid on and claim from auctions it creates.
+Only the wallet that deployed this factory is admin — only it can call `createAuction` or `cancelAuction`. Any connected wallet can bid on and claim from auctions once they exist. To act as admin yourself, deploy your own factory using section 3 above (your wallet then owns that deployment).
 
 ## Selected on-chain behavior
 

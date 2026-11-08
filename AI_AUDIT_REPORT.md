@@ -95,7 +95,7 @@ Reproduce with the commands in [README.md](./README.md). The ABI JSON under `web
 
 ## Sepolia deployment
 
-The factory is deployed on Sepolia and the frontend is wired to it.
+The factory below is this project's reference deployment and the one the shipped `web/.env.local` points at. Readers reproducing the project with `reproduce/sepolia-deploy.sh` deploy an independent factory from their own wallet and RPC; the addresses and state snapshot in this section are specific to the reference deployment.
 
 - Factory: `0xB200E4c71ba447281869880f895f24F825407173`
 - Deployment block: `12089885`
