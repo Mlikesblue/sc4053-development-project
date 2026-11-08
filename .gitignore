@@ -7,4 +7,5 @@ dist/
 .env.*
 !.env.example
 *.log
+.anvil.pid
 .DS_Store

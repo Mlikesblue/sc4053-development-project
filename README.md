@@ -35,24 +35,26 @@ Node.js 20.19 or later is required and must already be installed; we tested on 2
 
 ### 2. Local demo on anvil
 
-Open two terminals.
-
-Terminal 1 — start a local node:
-
-```sh
-anvil --chain-id 31337
-```
-
-Terminal 2 — deploy the factory and point the frontend at it, then start the dev server:
+One terminal is enough:
 
 ```sh
 reproduce/anvil-deploy.sh
 npm --prefix web run dev
 ```
 
-`anvil-deploy.sh` runs `forge script script/Deploy.s.sol:Deploy` with anvil account 0 as deployer (that account's private key is Foundry's public demo credential, valid only on local anvil). It reads the resulting factory address and deployment block out of `broadcast/Deploy.s.sol/31337/run-latest.json` and writes them to `web/.env.local` as `VITE_FACTORY_ANVIL_ADDRESS` and `VITE_ANVIL_DEPLOYMENT_BLOCK`; any Sepolia values already in that file are preserved.
+`anvil-deploy.sh` first delegates to `reproduce/anvil-start.sh`, which spawns `anvil --chain-id 31337` in the background if nothing is already listening on `http://127.0.0.1:8545`. The node logs go to `anvil.log` and its PID is stored in `.anvil.pid`; both are gitignored. If you already have an anvil running in another terminal, the start script detects that and reuses it.
+
+The deploy itself runs `forge script script/Deploy.s.sol:Deploy` with anvil account 0 as deployer (that account's private key is Foundry's public demo credential, valid only on local anvil). It reads the resulting factory address and deployment block out of `broadcast/Deploy.s.sol/31337/run-latest.json` and writes them to `web/.env.local` as `VITE_FACTORY_ANVIL_ADDRESS` and `VITE_ANVIL_DEPLOYMENT_BLOCK`; any Sepolia values already in that file are preserved.
 
 The Vite dev server defaults to `http://127.0.0.1:5173`. Connect MetaMask, add the Anvil network when prompted, and import any Anvil test account to transact. Anvil accounts and their keys are public demo credentials; never use them outside anvil.
+
+Stop the background anvil when you're done:
+
+```sh
+reproduce/anvil-stop.sh
+```
+
+If you started anvil by hand in another terminal, stop it there (`Ctrl+C`) — the stop script only touches anvils it spawned.
 
 ### 3. Fresh Sepolia deployment
 

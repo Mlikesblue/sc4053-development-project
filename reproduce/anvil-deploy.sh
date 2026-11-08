@@ -13,13 +13,8 @@ ANVIL_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 say() { printf '\n==> %s\n' "$*"; }
 
-# Sanity: is anvil up?
-if ! cast chain-id --rpc-url http://127.0.0.1:8545 >/dev/null 2>&1; then
-  echo "anvil is not reachable at http://127.0.0.1:8545" >&2
-  echo "Start it in another terminal first:" >&2
-  echo "    anvil --chain-id 31337" >&2
-  exit 1
-fi
+# Make sure an anvil node is running; start one in the background if not.
+"$(dirname "$0")/anvil-start.sh"
 
 say "Deploying factory to anvil"
 PRIVATE_KEY="$ANVIL_KEY" forge script script/Deploy.s.sol:Deploy \
