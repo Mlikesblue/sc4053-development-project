@@ -260,7 +260,24 @@ async function fetchOnchainActivity(
 export function App() {
   const chainClock = useChainTime();
   const now = chainClock.now;
-  const [network, setNetwork] = useState<NetworkKey>("anvil");
+  const [network, setNetwork] = useState<NetworkKey>(() => {
+    if (typeof window === "undefined") return "anvil";
+    const saved = window.localStorage.getItem("drop/network");
+    return saved === "sepolia" || saved === "anvil" ? saved : "anvil";
+  });
+  const [view, setView] = useState<"landing" | "dashboard">(() => {
+    if (typeof window === "undefined") return "landing";
+    const saved = window.localStorage.getItem("drop/view");
+    return saved === "dashboard" ? "dashboard" : "landing";
+  });
+  const [dashboardSection, setDashboardSection] = useState<"auctions" | "create">(() => {
+    if (typeof window === "undefined") return "auctions";
+    const saved = window.localStorage.getItem("drop/dashboardSection");
+    return saved === "create" ? "create" : "auctions";
+  });
+  useEffect(() => { window.localStorage.setItem("drop/network", network); }, [network]);
+  useEffect(() => { window.localStorage.setItem("drop/view", view); }, [view]);
+  useEffect(() => { window.localStorage.setItem("drop/dashboardSection", dashboardSection); }, [dashboardSection]);
   const [account, setAccount] = useState<Address>();
   const [walletChainId, setWalletChainId] = useState<number>();
   const [auctionSnapshot, setAuctionSnapshot] = useState<{
@@ -596,14 +613,88 @@ export function App() {
   const deploymentReady = Boolean(publicClient && factoryAddress);
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#" aria-label="Drop home"><span className="brand-mark">d</span><span>drop</span></a>
-        <nav className="topnav" aria-label="Main navigation">
-          <a className="nav-current" href="#auctions">Auctions</a>
-          <a href="#how-it-works">How it works</a>
+    view === "landing" ? (
+    <main className="landing-shell">
+      <header className="landing-topbar">
+        <a className="brand" href="#" aria-label="drop home"><span className="brand-mark">d</span><span>drop</span></a>
+        <button type="button" className="launch-button" onClick={() => setView("dashboard")}>Launch app <span>↗</span></button>
+      </header>
+
+      <section className="hero">
+        <div className="hero-copy">
+          <div className="eyebrow"><span className="eyebrow-line" />TOKEN LAUNCHES, WITH THE PRICE OUT IN THE OPEN</div>
+          <h1>A fair start<br /><span>for every token.</span></h1>
+          <p>Watch the price fall. Commit ETH when it feels right. Every winner pays the same final price.</p>
+          <button type="button" className="text-link" onClick={() => setView("dashboard")}>Explore auctions <span>↘</span></button>
+        </div>
+        <div className="hero-visual" aria-hidden="true">
+          <div className="orbital orbital-a" /><div className="orbital orbital-b" />
+          <div className="hero-token"><span className="token-core">d</span><span className="token-shine" /></div>
+          <div className="float-label float-left">PRICE DISCOVERY <span>ON CHAIN</span></div>
+          <div className="float-label float-right"><span className="signal-dot" /> LIVE CURVE</div>
+          <div className="hero-spark spark-a">✦</div><div className="hero-spark spark-b">✧</div>
+        </div>
+      </section>
+
+      <section className="how-it-works">
+        <div className="section-heading">
+          <div><div className="eyebrow"><span className="eyebrow-line" />HOW IT WORKS</div><h2>Three steps. No gas wars.</h2></div>
+          <span className="section-count">ON-CHAIN</span>
+        </div>
+        <div className="how-grid">
+          <div className="how-card">
+            <span className="how-step">01</span>
+            <h3>Price falls on a schedule.</h3>
+            <p>Each auction starts at a high price and decays on a deterministic curve toward its reserve over 20 minutes. The live price is readable from the contract at every second.</p>
+          </div>
+          <div className="how-card">
+            <span className="how-step">02</span>
+            <h3>Commit ETH when it&rsquo;s your price.</h3>
+            <p>Bidders lock ETH when the falling price feels fair. Commitments can&rsquo;t be withdrawn, but their final cost is settled at auction close &mdash; not now.</p>
+          </div>
+          <div className="how-card">
+            <span className="how-step">03</span>
+            <h3>Everyone pays the same price.</h3>
+            <p>The auction clears when enough ETH is committed or time runs out. Every winner pays the single clearing price; excess ETH is refunded, unsold tokens are burned.</p>
+          </div>
+        </div>
+      </section>
+
+      {notice && <div className="toast" role="status" onClick={() => setNotice("")}>{notice}<button aria-label="Dismiss">×</button></div>}
+
+      <footer className="footer">
+        <a className="brand footer-brand" href="#"><span className="brand-mark">d</span><span>drop</span></a>
+        <span>SC4053 Development Project &middot; Mirza Bin Muhammad Hisham &amp; Garv Sachdev</span>
+        <span>{networkDetails(network)} <i className="signal-dot" /></span>
+      </footer>
+    </main>
+    ) : (
+    <main className="dashboard-shell">
+      <aside className="dashboard-sidebar" aria-label="Dashboard">
+        <a className="brand brand-side" href="#" onClick={(event) => { event.preventDefault(); setView("landing"); }} aria-label="drop home">
+          <span className="brand-mark">d</span><span>drop</span>
+        </a>
+        <nav className="sidebar-nav" aria-label="Sections">
+          <button
+            type="button"
+            className={`sidebar-nav-item ${dashboardSection === "auctions" ? "active" : ""}`}
+            onClick={() => setDashboardSection("auctions")}
+          >
+            <span className="nav-glyph" aria-hidden="true">◎</span>
+            Live auctions
+          </button>
+          {isAdmin && factoryAddress && (
+            <button
+              type="button"
+              className={`sidebar-nav-item ${dashboardSection === "create" ? "active" : ""}`}
+              onClick={() => setDashboardSection("create")}
+            >
+              <span className="nav-glyph" aria-hidden="true">+</span>
+              Create auctions
+            </button>
+          )}
         </nav>
-        <div className="top-actions">
+        <div className="sidebar-footer">
           <label className="network-select">
             <span className="network-indicator" />
             <select value={network} onChange={(event) => setNetwork(event.target.value as NetworkKey)} aria-label="Read network">
@@ -619,24 +710,10 @@ export function App() {
             <button className="wallet-button" onClick={() => void connectWallet()}>Connect wallet</button>
           )}
         </div>
-      </header>
+      </aside>
 
-      <section className="hero" id="auctions">
-        <div className="hero-copy">
-          <div className="eyebrow"><span className="eyebrow-line" />TOKEN LAUNCHES, WITH THE PRICE OUT IN THE OPEN</div>
-          <h1>A fair start<br /><span>for every token.</span></h1>
-          <p>Watch the price fall. Commit ETH when it feels right. Every winner pays the same final price.</p>
-          <a href="#auction-list" className="text-link">Explore auctions <span>↘</span></a>
-        </div>
-        <div className="hero-visual" aria-hidden="true">
-          <div className="orbital orbital-a" /><div className="orbital orbital-b" />
-          <div className="hero-token"><span className="token-core">d</span><span className="token-shine" /></div>
-          <div className="float-label float-left">PRICE DISCOVERY <span>ON CHAIN</span></div>
-          <div className="float-label float-right"><span className="signal-dot" /> LIVE CURVE</div>
-          <div className="hero-spark spark-a">✦</div><div className="hero-spark spark-b">✧</div>
-        </div>
-      </section>
-
+      <section className="dashboard-main">
+        {dashboardSection === "auctions" && (
       <section className="auction-section">
         <div className="section-heading" id="auction-list">
           <div><div className="eyebrow"><span className="eyebrow-line" />THE AUCTION FLOOR</div><h2>Auctions</h2></div>
@@ -769,8 +846,9 @@ export function App() {
           </div>
         )}
       </section>
+        )}
 
-      {isAdmin && factoryAddress && (
+        {dashboardSection === "create" && isAdmin && factoryAddress && (
         <section className="create-section">
           <div className="section-heading"><div><div className="eyebrow"><span className="eyebrow-line" />ISSUER TOOLS</div><h2>Create an auction</h2></div><span className="section-count">ADMIN ONLY</span></div>
           <div className="create-grid">
@@ -784,16 +862,12 @@ export function App() {
             <div className="create-footer"><span>Settings are fixed at creation · duration is 20 minutes maximum.</span><button className="primary-button" disabled={working} onClick={() => void createAuction()}>Create auction <span>↗</span></button></div>
           </div>
         </section>
-      )}
+        )}
+      </section>
 
       {notice && <div className="toast" role="status" onClick={() => setNotice("")}>{notice}<button aria-label="Dismiss">×</button></div>}
-
-      <footer className="footer" id="how-it-works">
-        <a className="brand footer-brand" href="#"><span className="brand-mark">d</span><span>drop</span></a>
-        <span>Transparent price discovery, one auction at a time.</span>
-        <span>{networkDetails(network)} <i className="signal-dot" /></span>
-      </footer>
     </main>
+    )
   );
 }
 

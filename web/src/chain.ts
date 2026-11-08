@@ -46,9 +46,29 @@ export function publicClientFor(network: NetworkKey): PublicClient | undefined {
     ? "http://127.0.0.1:8545"
     : import.meta.env.VITE_SEPOLIA_RPC_URL;
   if (!rpcUrl) return undefined;
+
+  // Sepolia has Multicall3 deployed at the canonical address, so viem can
+  // aggregate every readContract call this app issues during a refresh into a
+  // single eth_call. This keeps Alchemy's free-tier compute-units-per-second
+  // limit comfortably out of reach on an account or network switch.
+  //
+  // Anvil does not ship with Multicall3 by default, so we stick with plain
+  // JSON-RPC batching there; localhost latency makes the volume irrelevant.
+  if (network === "sepolia") {
+    return createPublicClient({
+      chain: sepolia,
+      transport: http(rpcUrl, {
+        batch: { batchSize: 100, wait: 50 },
+        retryCount: 3,
+        retryDelay: 500,
+      }),
+      batch: { multicall: { batchSize: 1024, wait: 50 } },
+    });
+  }
+
   return createPublicClient({
-    chain: networks[network] as typeof anvil,
-    transport: http(rpcUrl),
+    chain: anvil,
+    transport: http(rpcUrl, { batch: { batchSize: 100, wait: 16 } }),
   });
 }
 

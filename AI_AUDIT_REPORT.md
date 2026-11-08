@@ -1,5 +1,7 @@
 # AI Audit Report — Dutch Auction dApp
 
+**Team:** Mirza Bin Muhammad Hisham (U2340585L), Garv Sachdev (U2323262H)  
+**Course:** SC4053 Blockchain Technology, AY2026-2027 Semester 1, Nanyang Technological University  
 **Prepared:** 2026-11-08  
 **Status:** Contracts deployed to Sepolia; frontend wired to both anvil and Sepolia.
 

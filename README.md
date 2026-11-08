@@ -2,6 +2,13 @@
 
 An Ethereum dApp for configurable, 20-minute Dutch auctions with a uniform clearing price, ERC-20 claims, and automatic ETH refund accounting. Read the live requirements in [spec-working.md](./spec-working.md), the original course baseline in [spec.md](./spec.md), the interview history in [ai-log.md](./ai-log.md), and the implementation review in [AI_AUDIT_REPORT.md](./AI_AUDIT_REPORT.md).
 
+## Team
+
+SC4053 Blockchain Technology, AY2026-2027 Semester 1, Nanyang Technological University.
+
+- Mirza Bin Muhammad Hisham — U2340585L
+- Garv Sachdev — U2323262H
+
 ## Requirements
 
 - Foundry / Forge (local setup used Foundry 1.9.0)
