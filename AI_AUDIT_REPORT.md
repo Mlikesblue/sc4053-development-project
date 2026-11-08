@@ -5,7 +5,7 @@
 **Prepared:** 2026-11-08  
 **Status:** Contracts deployed to Sepolia; frontend wired to both anvil and Sepolia.
 
-This report records AI-assisted implementation and local validation. It is not an independent smart-contract security audit. The approved requirements and course-brief interpretation are recorded in [spec-working.md](./spec-working.md); interview answers and the implementation request are recorded in [ai-log.md](./ai-log.md).
+This report records AI-assisted implementation and end-to-end validation on both local anvil and Sepolia. It is not an independent smart-contract security audit. Design decisions and the running specification are recorded in [spec-working.md](./spec-working.md); interview answers and the implementation request are recorded in [ai-log.md](./ai-log.md).
 
 ## Implementation summary
 
@@ -14,7 +14,7 @@ This report records AI-assisted implementation and local validation. It is not a
 - **Settlement:** Individual commitment order is retained, including repeated bids from one address. Settlement trims from newest commitments, aggregates retained ETH by bidder, computes independent token/refund entitlements, burns unsold or rounding-dust units, and reserves refunds before proceeds can be withdrawn.
 - **Claims:** The combined Claim finalizes when necessary and transfers tokens plus ETH refunds. Separate token-only and bidder-authorized redirected refund functions are available. State updates precede external transfers and all payout entry points use reentrancy protection.
 - **Frontend:** React/Vite with viem reads auction data, displays a locally advancing deterministic price curve and frozen close marker, supports wallet/network prompts and administrator controls, and maintains wallet-filtered activity using on-chain events plus browser storage.
-- **Operational scripts:** Foundry deployment and ABI export scripts are present. The deployment script was not broadcast to any network.
+- **Operational scripts:** Foundry deployment and ABI export scripts, plus shell wrappers under `reproduce/` for one-command install, local anvil deployment, and Sepolia deployment. The factory is live on anvil and on Sepolia (see the Sepolia deployment section).
 
 ## Settlement arithmetic and invariants reviewed
 
@@ -131,4 +131,4 @@ One auction has been created against the live factory to confirm end-to-end beha
 ## Deployment status
 
 - The factory is deployed on local Anvil and on Sepolia. The Sepolia factory address, deployment block, and settlement snapshot are listed above.
-- No independent third-party audit has been performed. The course wording about “exactly 20 minutes” and “automatic” refunds remains an interpretation: this project implements early sellout and calculates refunds at settlement, paid by the bidder's combined Claim action, as approved.
+- No independent third-party audit has been performed.
