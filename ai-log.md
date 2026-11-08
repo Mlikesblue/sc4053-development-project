@@ -177,3 +177,88 @@ Keep representative prompt chains that shape the project specification, architec
 - Added an optional **Add to MetaMask** action for claimed tokens. It reads the selected auction token's address, symbol, and decimals from the chain and checks the wallet network before requesting `wallet_watchAsset`.
 - In Chrome with MetaMask on Anvil, opened the CateCoin prompt from an existing claim, dismissed it, then reopened and approved it. The account transaction count stayed at six.
 - The frontend build and all five frontend tests passed. The tests cover the Anvil and Sepolia request paths, wrong networks, and wallet failures. Live Sepolia validation awaits a configured deployment.
+
+## Sepolia deployment — 2026-11-08
+
+- **Date and tool** — 2026-11-08, Kiro
+- **Task and context** — Bring the implementation onto a live testnet to fulfill the Sepolia deployment scope. The contract and frontend had been validated on local anvil only. Alchemy was chosen for the JSON-RPC endpoint on the basis of the `hello-dapp` reference workflow in the course materials (Infura in the original, Alchemy as the current equivalent).
+
+**Prompt**
+
+> Deploy the `AuctionFactory` contract to the Ethereum Sepolia testnet using the tooling recommended in the course materials.
+>
+> - Use Alchemy as the JSON-RPC provider, consistent with the course's `hello-dapp` reference workflow.
+> - Reuse the existing MetaMask development wallet. Store `SEPOLIA_RPC_URL` and `PRIVATE_KEY` in a gitignored root `.env` derived from `.env.example`.
+> - Pre-flight: verify the private key derives to the expected address, that the configured RPC reports Sepolia's chain id, and that the deployer wallet is funded. Document the funding sources used.
+> - After deployment, confirm by reading factory state over the same RPC, then exercise the full flow end-to-end on the live chain: create one auction, place bids from two separate wallets, and finalize through a bidder claim.
+> - Write the deployed factory address, RPC URL, and deployment block into `web/.env.local` without clobbering any anvil values. Any code change required to accommodate Sepolia must remain consistent with local anvil behavior.
+
+**Outcome and follow-ups**
+
+- Created a Sepolia Alchemy app and populated `.env` with the HTTPS endpoint and the dev wallet's exported private key (`0x33C8Dfe2150C7E294b97b51f17f929E7D06850B8`). Funded the wallet via the Google Cloud Sepolia faucet, topped up through PK910's proof-of-work faucet after the next-drop cooldown.
+- Pre-flight validated key → address derivation, chain id `11155111`, and wallet balance before broadcasting.
+- `forge create src/AuctionFactory.sol:AuctionFactory` with Foundry's default gas handling deployed the factory at `0xB200E4c71ba447281869880f895f24F825407173`, block `12089885`.
+- Reduced `MAX_LOG_BLOCK_RANGE` from 2000 to 10 in `web/src/ui/App.tsx` so each `eth_getLogs` call stays inside Alchemy's free-tier 10-block range cap. The scan loop is otherwise unchanged; anvil, which has no such limit, keeps working.
+- End-to-end exercise on Sepolia: one auction at `0x8AE8F3367548a690B2A8f087206B1472C5B32C1a`, bids from two wallets, finalization through bidder claims. Final state: 100 TST supply, 37.5 allocated across both bidders, 62.5 burned, 0.15 ETH in sale proceeds.
+- The existing anvil deployment path and 30/30 Foundry test suite remained untouched by the Sepolia work.
+
+**Evidence**
+
+- Commit `688395e`. Factory on Etherscan: <https://sepolia.etherscan.io/address/0xB200E4c71ba447281869880f895f24F825407173>.
+
+## Reproducibility scripts — 2026-11-08
+
+- **Date and tool** — 2026-11-08, Kiro
+- **Task and context** — Package every reproduction path behind shell wrappers so a grader can go from a bare clone to a running demo with a single command per path. The earlier instructions were spread across multiple README sections and assumed the reader would assemble them; this replaces that with scripts the reader runs directly.
+
+**Prompt**
+
+> Make the repository fully reproducible from a bare clone. Package every reproduction path (install + build + full test suite; local anvil demo; Sepolia deployment) behind shell scripts under a new top-level folder so a grader can go from `git clone` to a running demo with a single command per path.
+>
+> - `reproduce/install.sh`: install Foundry at the pinned version if missing, run `npm ci --prefix web`, build contracts, run the full Foundry suite, regenerate ABIs, run frontend unit tests, and produce the Vite production bundle. Exit non-zero on the first failure.
+> - `reproduce/anvil-deploy.sh` plus `reproduce/anvil-start.sh` and `reproduce/anvil-stop.sh`: deploy to a background-managed anvil in a single terminal and write anvil env values to `web/.env.local` without clobbering Sepolia values. The start script must be idempotent and the PID tracked for clean teardown.
+> - `reproduce/sepolia-deploy.sh`: read the root `.env`, broadcast `forge create` with Foundry's default gas handling, parse the resulting address and deployment block, and write the Sepolia env values into `web/.env.local` without clobbering anvil values.
+> - Rewrite the README's install, local demo, and Sepolia sections around these scripts. The new folder name must not be confusable with the existing Solidity `script/` directory. Update `.gitignore` for any runtime files the scripts create.
+
+**Outcome and follow-ups**
+
+- Added five executable scripts under `reproduce/` (named to avoid confusion with Solidity `script/`): `install.sh`, `anvil-start.sh`, `anvil-stop.sh`, `anvil-deploy.sh`, `sepolia-deploy.sh`. Each uses `set -euo pipefail`, exits non-zero on failure, and prints a next-step command line on success.
+- `anvil-start.sh` spawns anvil in the background only when no listener answers on the default port, tracks the PID in `.anvil.pid`, and tails `anvil.log`. `anvil-deploy.sh` delegates to it so one terminal covers both. `anvil-stop.sh` only touches PIDs it owns, leaving hand-started anvils to the user.
+- Both deploy scripts update `web/.env.local` through a small Python helper that preserves existing values on the opposite network.
+- Updated `.gitignore` to cover `.anvil.pid` and `tsconfig.tsbuildinfo` (and untracked the previously-committed buildinfo file).
+- Rewrote the README install, local demo, and Sepolia sections around the scripts; added a short "Reproduce from scratch" header so the scripts are the first thing a reader sees.
+- Verified end-to-end on both chains: `install.sh` runs green, `anvil-deploy.sh` brings up a fresh factory on anvil, `sepolia-deploy.sh` deploys a second factory to Sepolia (which was reverted locally after the test so the committed documentation continues to point at the reference deployment).
+
+**Evidence**
+
+- Commits `688395e` (initial three scripts + README rewrite) and `7ed4854` (`anvil-start` / `anvil-stop` split).
+
+## UI split refactor — 2026-11-08
+
+- **Date and tool** — 2026-11-08, Kiro
+- **Task and context** — The frontend was a single scrolling page: hero, auction list, auction detail, and create-auction form all rendered on one route. Split it into a landing page and a dashboard with a sidebar, without changing any contract interaction, wallet handling, or on-chain read logic. Shift the palette from dark to bold light-mode.
+
+**Prompt**
+
+> Restructure the frontend into two views without changing any contract interaction, wallet handling, or on-chain read logic.
+>
+> - Introduce a landing page containing the existing hero, a short "how it works" section with three steps, and a single call-to-action that transitions to the dashboard. Remove network and wallet controls from the landing page.
+> - Introduce a dashboard view with a left sidebar and a main content area. The sidebar contains the brand, navigation items for "Live auctions" and "Create auctions", the network dropdown, and the connect-wallet control. The main area renders the existing auction section or create-auction form based on the selected nav item.
+> - Keep the "Create auctions" sidebar item gated by the pre-existing `isAdmin && factoryAddress` condition. Do not add any new admin logic.
+> - Persist the active view, selected dashboard section, and selected network to `localStorage` so a reload returns the user to the same place.
+> - Pin the dashboard layout with the sidebar and main area owning their own scrolls; the sidebar must not move with page scroll.
+> - Replace the dark palette with a bold light-mode scheme (warm off-white background, near-black text, saturated accent, thick outlines, hard-edged accent shadows on cards and buttons).
+> - Enable Multicall3 aggregation on the Sepolia public client so the per-render read volume does not exceed the free-tier compute-unit limit. Keep anvil's transport simple since fresh anvil does not deploy Multicall3.
+
+**Outcome and follow-ups**
+
+- Added `view` (`"landing" | "dashboard"`) and `dashboardSection` (`"auctions" | "create"`) state. All three state values plus `network` are persisted to `localStorage` under a `drop/` prefix.
+- Landing page carries the existing hero, a new three-card "how it works" section, and a "Launch app" button. Dashboard carries the left sidebar (brand, nav, network dropdown, wallet button) and main area that renders the pre-existing auction section or create-auction section unchanged. The "Create auctions" nav button is gated on the pre-existing `isAdmin && factoryAddress` condition.
+- Dashboard shell pinned at `height: 100vh` with `overflow: hidden`; sidebar and main area each own an independent `overflow-y: auto`, so the sidebar stays put while content scrolls. Mobile breakpoint releases the pin and stacks the layout.
+- Palette replaced in `styles.css`: warm cream background, near-black ink, emerald accent, 1.5px black outlines with hard-edged accent shadows on cards and buttons. All component classnames retained.
+- `publicClientFor("sepolia")` now uses viem's Multicall3 batching (`batch.multicall` at the canonical address) plus a retry policy on the http transport (3 attempts, 500ms). The ~18 read calls that fire on every refresh collapse into a single `eth_call`, which keeps per-render traffic under Alchemy's free-tier compute-unit ceiling and ends the `Failed to fetch` bursts on account/network switches. Anvil's client keeps plain HTTP batching because fresh anvil does not deploy Multicall3.
+- No contract calls, event signatures, wallet flows, or auction logic were changed. The 30/30 Foundry suite and 5/5 frontend tests still pass.
+
+**Evidence**
+
+- Commit `c5b5bfc`.
