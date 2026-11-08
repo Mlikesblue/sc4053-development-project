@@ -11,75 +11,97 @@ An Ethereum dApp for configurable, 20-minute Dutch auctions with a uniform clear
 
 Solidity is pinned to 0.8.28. OpenZeppelin Contracts v5.7.0 and `forge-std` v1.16.2 are pinned in `lib/`; React, viem, Vite, and TypeScript versions are pinned by `web/package-lock.json`.
 
-## Install and build
+## Reproduce from scratch
 
-Install Foundry if it is not already present:
+Three shell scripts in `reproduce/` cover every path. Run them from the repo root. (Note: the course-shipped Solidity scripts live in `script/` — the directories are deliberately different.)
 
-```sh
-curl -L https://foundry.paradigm.xyz | bash
-export PATH="$HOME/.foundry/bin:$PATH"
-foundryup --install 1.9.0
-```
-
-If you are reconstructing dependencies rather than using the included `lib/` directory, install the pinned Solidity libraries from the project root:
+### 1. Install dependencies, build, run all tests
 
 ```sh
-forge install OpenZeppelin/openzeppelin-contracts@v5.7.0 --no-git
-forge install foundry-rs/forge-std@v1.16.2 --no-git
+reproduce/install.sh
 ```
 
-Build contracts, run the local test and gas suites, and install/build the frontend:
+What it does:
 
-```sh
-forge build
-forge test
-forge test --gas-report
-forge fmt --check
-npm ci --prefix web
-npm --prefix web test
-node script/export-abi.mjs
-npm --prefix web run build
-```
+- Installs Foundry 1.9.0 via `curl -L https://foundry.paradigm.xyz | bash && foundryup --install 1.9.0` if `forge` is not already on `PATH`.
+- Runs `npm ci --prefix web` against the committed `web/package-lock.json`.
+- Runs `forge build` then `forge test` (30 tests including gas benchmarks).
+- Runs `node script/export-abi.mjs` to regenerate `web/src/abi/*.json` from the Foundry artifacts.
+- Runs `npm --prefix web test` (frontend unit tests) and `npm --prefix web run build` (Vite production bundle).
 
-The checked-in ABI files are regenerated from Foundry artifacts by `node script/export-abi.mjs` after contract changes.
+The script is idempotent; re-running after a code change rebuilds and retests. It exits non-zero on any failure, so it doubles as a CI-style sanity check.
 
-## Local interactive demo
+Node.js 20.19 or later is required and must already be installed; we tested on 22.14.0.
 
-Start Anvil in one terminal:
+### 2. Local demo on anvil
+
+Open two terminals.
+
+Terminal 1 — start a local node:
 
 ```sh
 anvil --chain-id 31337
 ```
 
-In another terminal, deploy the factory to Anvil using one of Anvil's local test accounts:
+Terminal 2 — deploy the factory and point the frontend at it, then start the dev server:
 
 ```sh
-forge script script/Deploy.s.sol:Deploy \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast --unlocked --sender <ANVIL_TEST_ACCOUNT>
-```
-
-The deployment script fixes the per-auction commitment limit at 64. Copy the resulting factory address and its deployment block into `web/.env.local`; start from `web/.env.example`. Then run:
-
-```sh
+reproduce/anvil-deploy.sh
 npm --prefix web run dev
 ```
 
-Open the localhost URL printed by Vite. Add the local Anvil network to MetaMask if prompted and import an Anvil test account only for local demonstrations. Anvil test accounts and keys are public demo credentials; never use them outside Anvil.
+`anvil-deploy.sh` runs `forge script script/Deploy.s.sol:Deploy` with anvil account 0 as deployer (that account's private key is Foundry's public demo credential, valid only on local anvil). It reads the resulting factory address and deployment block out of `broadcast/Deploy.s.sol/31337/run-latest.json` and writes them to `web/.env.local` as `VITE_FACTORY_ANVIL_ADDRESS` and `VITE_ANVIL_DEPLOYMENT_BLOCK`; any Sepolia values already in that file are preserved.
 
-To browse Sepolia, set `VITE_FACTORY_SEPOLIA_ADDRESS` and `VITE_SEPOLIA_RPC_URL` in `web/.env.local`. The web app does not need or accept a private key. Transaction signing stays in the connected wallet.
+The Vite dev server defaults to `http://127.0.0.1:5173`. Connect MetaMask, add the Anvil network when prompted, and import any Anvil test account to transact. Anvil accounts and their keys are public demo credentials; never use them outside anvil.
 
-## Sepolia deployment
+### 3. Fresh Sepolia deployment
 
-Sepolia is in project scope, but this workspace has **not** been deployed to Sepolia. Do not broadcast a Sepolia deployment until the local implementation is validated and the project owner has supplied the required RPC and signing configuration.
-
-When ready, copy the root `.env.example` to `.env`, provide `SEPOLIA_RPC_URL` and `PRIVATE_KEY` locally, and run the deployment script explicitly:
+Prepare one secret file at the repo root:
 
 ```sh
-forge script script/Deploy.s.sol:Deploy --rpc-url sepolia --broadcast
+cp .env.example .env
 ```
 
-Keep `.env` private. Never copy `PRIVATE_KEY` into `web/.env.local`, frontend variables, source files, or reports. After deployment, configure the public Sepolia factory address and RPC endpoint in `web/.env.local`, then rebuild/restart the frontend.
+Edit `.env`:
+
+- `SEPOLIA_RPC_URL` — JSON-RPC endpoint. We used Alchemy, which the course materials recommend; any Sepolia HTTPS RPC works.
+- `PRIVATE_KEY` — hex-prefixed private key of the deploying wallet. It must hold at least ~0.05 Sepolia ETH; a factory deploy on post-Pectra Sepolia consumes about 0.03 ETH at a 1 gwei tip, and each `createAuction` call costs another ~0.03 ETH because it also deploys two child contracts.
+
+`.env` is gitignored. Keep it there — never copy `PRIVATE_KEY` into `web/.env.local`, frontend source, or any report.
+
+Then:
+
+```sh
+reproduce/sepolia-deploy.sh
+npm --prefix web run dev
+```
+
+`sepolia-deploy.sh` runs:
+
+```sh
+forge create src/AuctionFactory.sol:AuctionFactory \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --private-key "$PRIVATE_KEY" \
+  --broadcast
+```
+
+It parses the deployed address from forge's stdout and the deployment block from a `cast receipt` call, then writes `VITE_FACTORY_SEPOLIA_ADDRESS`, `VITE_SEPOLIA_RPC_URL`, and `VITE_SEPOLIA_DEPLOYMENT_BLOCK` into `web/.env.local` (preserving any anvil values). It prints the address, deployment block, transaction hash, and an Etherscan link.
+
+With the frontend running, use the network dropdown in the top bar to toggle between Anvil and Sepolia. Each network reads its own factory address and RPC URL from `web/.env.local`.
+
+## Live Sepolia deployment
+
+The factory is already deployed on Sepolia. To browse the existing deployment without deploying your own, add the following to `web/.env.local` and start the frontend:
+
+```sh
+VITE_FACTORY_SEPOLIA_ADDRESS=0xB200E4c71ba447281869880f895f24F825407173
+VITE_SEPOLIA_RPC_URL=<your Sepolia HTTPS RPC>
+VITE_SEPOLIA_DEPLOYMENT_BLOCK=12089885
+```
+
+Etherscan: <https://sepolia.etherscan.io/address/0xB200E4c71ba447281869880f895f24F825407173>
+
+The admin of the on-chain factory is the deploying wallet. Only that wallet can call `createAuction`; any connected wallet can bid on and claim from auctions it creates.
 
 ## Selected on-chain behavior
 

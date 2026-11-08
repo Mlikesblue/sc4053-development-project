@@ -42,7 +42,10 @@ interface NetworkHistory {
 }
 
 const CURVE_NAMES = ["Linear", "Quadratic slow-initial", "Quadratic fast-initial"];
-const MAX_LOG_BLOCK_RANGE = 2_000n;
+// Alchemy's free Sepolia tier caps eth_getLogs at a 10-block range per call.
+// Anvil has no limit; a small chunk size just means more (still fast) local calls.
+// Keeping one conservative value keeps the code identical on both chains.
+const MAX_LOG_BLOCK_RANGE = 10n;
 
 function historyKey(network: NetworkKey, auction: Address, account: Address) {
   return `dutch-auction/activity/v1/${network}/${auction.toLowerCase()}/${account.toLowerCase()}`;

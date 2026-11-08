@@ -1,7 +1,7 @@
 # AI Audit Report — Dutch Auction dApp
 
-**Prepared:** 2026-11-07  
-**Status:** Local contracts and frontend implemented; no Sepolia deployment performed.
+**Prepared:** 2026-11-08  
+**Status:** Contracts deployed to Sepolia; frontend wired to both anvil and Sepolia.
 
 This report records AI-assisted implementation and local validation. It is not an independent smart-contract security audit. The approved requirements and course-brief interpretation are recorded in [spec-working.md](./spec-working.md); interview answers and the implementation request are recorded in [ai-log.md](./ai-log.md).
 
@@ -93,8 +93,40 @@ Reproduce with the commands in [README.md](./README.md). The ABI JSON under `web
 - Verified in Chrome and MetaMask with a prior CateCoin claim on Anvil. The prompt showed CTN and the account's token balance. Dismissal returned a message and allowed a retry. Approval returned to the auction page with a message pointing to the wallet's token list. The account transaction count stayed at six, so the display request submitted no transaction and used no gas.
 - The frontend build and all five frontend tests passed. Automated tests cover both chain IDs, token metadata in the request, network mismatch, rejection, unsupported methods, and other wallet errors. Sepolia coverage for this feature used a simulated provider.
 
+## Sepolia deployment
+
+The factory is deployed on Sepolia and the frontend is wired to it.
+
+- Factory: `0xB200E4c71ba447281869880f895f24F825407173`
+- Deployment block: `12089885`
+- Admin (factory owner): `0x33C8Dfe2150C7E294b97b51f17f929E7D06850B8`
+- Etherscan: <https://sepolia.etherscan.io/address/0xB200E4c71ba447281869880f895f24F825407173>
+
+The deployment is performed by `reproduce/sepolia-deploy.sh`, which wraps a single command:
+
+```sh
+forge create src/AuctionFactory.sol:AuctionFactory \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --private-key "$PRIVATE_KEY" \
+  --broadcast
+```
+
+The script parses the deployed address and deployment block from forge and `cast receipt`, then writes `VITE_FACTORY_SEPOLIA_ADDRESS`, `VITE_SEPOLIA_RPC_URL`, and `VITE_SEPOLIA_DEPLOYMENT_BLOCK` into `web/.env.local` while preserving any existing anvil values.
+
+One supporting frontend change was needed to run against Sepolia on Alchemy's free tier: `MAX_LOG_BLOCK_RANGE` in `web/src/ui/App.tsx` was reduced from 2000 to 10 so that each `eth_getLogs` call in the activity-history scanner stays within Alchemy's free-tier per-call 10-block range. The scan loop and all other behavior are unchanged, so anvil, which has no such limit, is unaffected (just makes more, local calls).
+
+### Deployment state snapshot
+
+One auction has been created against the live factory to confirm end-to-end behavior from contract creation through bidder claims.
+
+- Auction: `0x8AE8F3367548a690B2A8f087206B1472C5B32C1a`
+- Token supply: 100 TST (18 decimals)
+- Starting price: 0.01 ETH per token · Reserve: 0.004 ETH per token · Curve: quadratic fast-initial · Window: 20 minutes
+- Commitments: 3 / 64 · Total accepted: 0.15 ETH · Final clearing price: 0.004 ETH per token
+- Allocated: 37.5 TST · Burned: 62.5 TST · Sale proceeds: 0.15 ETH · Refund liability: 0 ETH
+- Status: Finalized; proceeds remain in the auction contract until `withdrawProceeds` is called by the admin.
+
 ## Deployment status
 
-- The factory is deployed on local Anvil and the CateCoin auction has been exercised in Chrome with MetaMask.
-- No Sepolia deployment or Sepolia transaction was performed. No private key or funded-wallet configuration was provided. Deployment steps are documented in [README.md](./README.md) for later use after the owner provides configuration.
+- The factory is deployed on local Anvil and on Sepolia. The Sepolia factory address, deployment block, and settlement snapshot are listed above.
 - No independent third-party audit has been performed. The course wording about “exactly 20 minutes” and “automatic” refunds remains an interpretation: this project implements early sellout and calculates refunds at settlement, paid by the bidder's combined Claim action, as approved.
